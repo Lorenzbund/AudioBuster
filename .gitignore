@@ -1,2 +1,7 @@
 createdSinks
 .config
+parsingNeeded
+sink-inputs
+sinks
+source-outputs
+Parsing.hs
