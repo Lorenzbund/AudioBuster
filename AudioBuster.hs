@@ -1,46 +1,12 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE OverloadedStrings #-}
 module AudioBuster where
+import Text.Printf
+import Control.Monad
+import Data.Function
+
 import Lib
-import "aeson" Data.Aeson
-import "aeson" Data.Aeson.Types
-import GHC.Generics
-import Data.Text qualified as T
-import Data.ByteString qualified as B
-import Data.String
-import Data.Maybe
-
-data DeviceType = Sink | Source deriving (Generic, Show)
-data DeviceInfo = DeviceInfo
-        { deviceType :: DeviceType
-        , deviceIndex :: Int
-        , deviceName :: String
-        } deriving (Generic, Show) 
-data StreamType = SinkInput | SourceOutput deriving (Generic, Show)
-data StreamInfo = StreamInfo
-        { streamType :: StreamType
-        , streamIndex :: Int
-        , applicationName :: String
-        , applicationbinaryName :: String
-        -- , assignedDevice :: DeviceInfo
-        } deriving (Generic, Show) 
-
-instance FromJSON StreamInfo where
-  parseJSON (Object v) = do
-    index <- v .: "index"
-    appName <- explicitParseField (\(Object p) -> p .: "application.name") v "properties"
-    appBinName <- explicitParseField (\(Object p) -> p .: "application.process.binary") v "properties"
-    -- <*> explicitParseFieldMaybe (\(Object p) -> p .: "target.object") v "properties"
-    -- <*> v .: "Sink"
-    pure $ StreamInfo SinkInput index appName appBinName
-
-
-instance FromJSON DeviceInfo where
-  parseJSON (Object v) = do
-    i <- v .: "index"
-    n <- v .: "name"
-    pure $ DeviceInfo Sink i n
-  
+import Parsing
 
 name = "createdSinks"
 sinkOp = openFile name ReadWriteMode
@@ -48,19 +14,20 @@ execPactlOut flags = createProcessOut $ proc "pactl" flags
 listJsonFlag name = ["-f", "json", "list", name]  
 
 main = do
-  -- sinkH <- sinkOp
-  -- nullSink <- execPactlOut ["load-module", "module-null-sink"]
-
+  sinkH <- sinkOp
+  _nullSink <- execPactlOut ["load-module", "module-null-sink"]
+  hAppend sinkH _nullSink hPutStr
+  hClose sinkH
   s@[sinks, sources, sinkInputs, sourceOutputs] <- mapM (execPactlOut . listJsonFlag) $ words "sinks sources sink-inputs source-outputs"
 
-  mapM_ (appendFile "parsingNeeded". (<> "\n")) s
+  -- mapM_ (appendFile "parsingNeeded". (<> "\n")) s
 
   let
-    parsedSinks = fromJust (decode (fromString sinks) :: Maybe [DeviceInfo])
-    parsedSources = fromJust (decode (fromString sources) :: Maybe [DeviceInfo])
-    parsedSinkInputs = fromJust (decode (fromString sinkInputs) :: Maybe [StreamInfo])
-    parsedSourceOutputs = fromJust (decode (fromString sourceOutputs) :: Maybe [StreamInfo])
-  -- putStr new
+    parseString :: FromJSON a => String -> a
+    parseString = fromJust . decode . fromString
+    devices@[parsedSinks, parsedSources] = (map parseString [sinks, sources] :: [[DeviceInfo]]) & \(x:y:xs) -> x : map (\y' -> y' { deviceType = Source }) y : xs
+    streams@[parsedSinkInputs, parsedSourceOutputs] = (map parseString [sinkInputs, sourceOutputs] :: [[StreamInfo]]) & \(x:y:xs) ->  x : map (\y' -> y' { streamType = SourceOutput }) y : xs
+
   print $ replicate 25 '-' <> " Sinks " <> replicate 25 '-'
   mapM_ print parsedSinks
   print $ replicate 25 '-' <> " Sources " <> replicate 25 '-'
@@ -70,14 +37,25 @@ main = do
   print $ replicate 25 '-' <> " Source Outputs " <> replicate 25 '-'
   mapM_ print parsedSourceOutputs
 
-  -- hAppend sinkH nullSink hPutStr
-  -- hClose sinkH
+
+  nullSink <- getLine
+  printf "{- Sink Inputs -} Input stream Index: "
+  let
+    readI = readLn :: IO Int
+  sinkInd <- show <$> readI
+  printf "{- Source Outputs -} Application to recieve Input: " 
+  sourceInd <- show <$> readI
+
+  void $ execPactlOut ["move-sink-input", sinkInd, nullSink]
+  void $ execPactlOut ["move-source-output", sourceInd, nullSink]
+
+  
   pure ()
   
 
 cleanup = do
   sinkH <- sinkOp
   openSinks <- lines <$> hGetContents sinkH
-  forM_ openSinks (\sink -> putStrLn ("deleted " <> sink) >> createProcess (proc "pactl" [ "unload-module", sink]))
+  forM_ openSinks (\sink -> putStrLn ("deleted " <> sink) >> createProcess (proc "pactl" [ "unload-module", sink ]))
   hClose sinkH
   clearFileWithName name

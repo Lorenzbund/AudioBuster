@@ -1,0 +1,7 @@
+* AudioBuster
+** Features
++ [X] Parsing
++ [X] Works (kind of)
++ [ ] Good User Interface
++ [ ] Documentation
+
