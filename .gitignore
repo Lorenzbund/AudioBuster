@@ -6,3 +6,8 @@ sinks
 source-outputs
 .Parsing.hs
 Idea.org
+*.o
+*.hi
+*CLI*
+AudioBuster
+ab

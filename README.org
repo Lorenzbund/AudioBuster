@@ -1,7 +1,26 @@
 * AudioBuster
-** Features
+** Compiling
+Your audio server must be configurable through =pactl=
+run =ghc AudioBuster.hs=
+You might want to rename =./AudioBuster= to simply =./ab=
+
+** Usage
+--help should be available on every command
++ =./AudioBuster init=
+  for creating a new null-sink
++ =./AudioBuster list=
+  list current Sinks, Sources, SinkInputs and SourceOutputs (+could+ vill be prettier)
++ =./AudioBuster configure=
++ =./AudioBuster hclean=
+  cleans all null-sinks. This currently leaks the file created with =./AudioBuster init=, just delete it.
+
+** Roadmap
 + [X] Parsing
 + [X] Works (kind of)
-+ [ ] Good User Interface
++ [X] Good User Interface
++ [ ] Prettier Format, *Better* User Interface
++ [ ] Cleanup
++ [ ] Cabal setup
++ [ ] Nix setup
 + [ ] Documentation
 
